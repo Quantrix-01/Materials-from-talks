@@ -1,0 +1,78 @@
+!pip install gymnasium
+!pip install pygame
+import random
+import time
+import gymnasium as gym
+import numpy as np
+
+# 1. Инициализация окружения для обучения (без графики, для скорости)
+env = gym.make("FrozenLake-v1", is_slippery=False)
+
+# 2. Настройка гиперпараметров
+ALPHA = 0.1  # Скорость обучения
+GAMMA = 0.95  # Фактор дисконтирования
+EPSILON = 1.0  # Исследование
+EPS_DECAY = 0.001  # Скорость снижения EPSILON
+MIN_EPSILON = 0.01
+EPISODES = 2000
+
+# 3. Создание Q-таблицы (16 состояний, 4 действия)
+q_table = np.zeros([env.observation_space.n, env.action_space.n])
+
+print("Обучение агента во FrozenLake...")
+
+# 4. Цикл обучения агента (проходит мгновенно в памяти)
+for episode in range(EPISODES):
+    state, _ = env.reset()
+    done = False
+
+    while not done:
+        # Эпсилон-жадная стратегия
+        if random.uniform(0, 1) < EPSILON:
+            action = env.action_space.sample()  # Исследование
+        else:
+            action = np.argmax(q_table[state])  # Эксплуатация
+
+        # Выполнение действия
+        next_state, reward, terminated, truncated, _ = env.step(action)
+        done = terminated or truncated
+
+        # Обновление Q-таблицы
+        old_value = q_table[state, action]
+        next_max = np.max(q_table[next_state])
+
+        q_table[state, action] = old_value + ALPHA * (
+            reward + GAMMA * next_max - old_value
+        )
+
+        state = next_state
+
+    # Снижение уровня случайности
+    EPSILON = max(MIN_EPSILON, EPSILON - EPS_DECAY)
+
+print("Обучение завершено!\n")
+
+
+# 5. Демонстрация работы обученного агента (5 эпизодов с окном Pygame)
+print("Запуск демонстрации в отдельном окне...")
+eval_env = gym.make("FrozenLake-v1", is_slippery=False, render_mode="human")
+
+for episode in range(5):
+    state, _ = eval_env.reset()
+    done = False
+    total_reward = 0
+
+    while not done:
+        eval_env.render()  # Отрисовка кадра в окне
+        time.sleep(0.3)  # Пауза 0.3 секунды между шагами персонажа
+
+        # Выбираем строго лучшее действие по обученной таблице
+        action = np.argmax(q_table[state])
+
+        state, reward, terminated, truncated, _ = eval_env.step(action)
+        done = terminated or truncated
+        total_reward += reward
+
+    eval_env.render()
+
+eval_env.close()
